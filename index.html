@@ -1,0 +1,96 @@
+<html xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+	<head>
+		<title></title>
+        <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+		<script>         
+            var UNITS = {
+                 "wacc" :  "%", 
+                 "scores" : "",
+                 "factory_utilization" : "%",
+                 "employee_engagement" : "%",
+                 "interest_coverage" : "x",
+                 "marketing_spend_rev" : " USD",
+                 "e_cars_sales" : " units",
+                 "co2_penalty" : "M (USD)"
+            }
+            
+            var TEAM_NAMES = ["fovro", "Fastun", "Nyxx", "CarSpa", "Motion", "Worthwheel", "Carzio", "Rollovo", "iAuto", "VroomTime", "Kar", "EliteTechs", "Carz", "MileMode", "Automotiq", "RYDI", "EvolutionAuto", "Automovo", "ROBOH", "rimovo", "ottobi", "Evi", "Rusted", "Cjio", "NitroRide", "HXH", "SpeedLabs", "TenQ", "Caraxa", "Blazers", "DriveSwitch", "GIIQ", "Teuso", "Hoqa", "AutoInfinite", "vusk", "DentCenter", "Turbo", "evCU", "Electronically", "Drivat", "Torque", "Drift", "Carvato", "Rush", "Matic", "Wheelic", "Slidyn", "Pitpo", "caralo", "Drivesly", "Xuad", "CarLeap", "Tazox", "Amxu", "Honkli"];
+
+            function update() {
+                $.get("data/" + $("#date").val() + ".json", function(data) {
+                    $("#datatable tbody").empty();
+                    var rows = data[$("#kpi").val()].sort(function(a, b) {
+                        return b.value - a.value;
+                    })
+                    var rank = 1;
+                    var last = null;
+    				$.each(rows, function(index, row) {
+	    				$("#datatable tbody").append("<tr><td>" + (row.value != last ? rank : '=') + "</td><td>" + TEAM_NAMES[row.team - 1] + "</td><td>" + row.value + UNITS[$("#kpi").val()] + "</td></tr>")
+                        last = row.value;
+                        rank = rank + 1;
+		    		});
+                })
+            }
+
+			$(document).ready(function() {
+                update();
+			})
+		</script>
+	
+<!--[if gte mso 9]><xml>
+<mso:CustomDocumentProperties>
+<mso:display_urn_x003a_schemas-microsoft-com_x003a_office_x003a_office_x0023_Editor msdt:dt="string">Edie, David</mso:display_urn_x003a_schemas-microsoft-com_x003a_office_x003a_office_x0023_Editor>
+<mso:Order msdt:dt="string">62700.0000000000</mso:Order>
+<mso:ComplianceAssetId msdt:dt="string"></mso:ComplianceAssetId>
+<mso:_ExtendedDescription msdt:dt="string"></mso:_ExtendedDescription>
+<mso:SharedWithUsers msdt:dt="string"></mso:SharedWithUsers>
+<mso:display_urn_x003a_schemas-microsoft-com_x003a_office_x003a_office_x0023_Author msdt:dt="string">Edie, David</mso:display_urn_x003a_schemas-microsoft-com_x003a_office_x003a_office_x0023_Author>
+<mso:TriggerFlowInfo msdt:dt="string"></mso:TriggerFlowInfo>
+<mso:ContentTypeId msdt:dt="string">0x0101000C357A5CC01DFC45915F96982FADA930</mso:ContentTypeId>
+<mso:_SourceUrl msdt:dt="string"></mso:_SourceUrl>
+<mso:_SharedFileIndex msdt:dt="string"></mso:_SharedFileIndex>
+</mso:CustomDocumentProperties>
+</xml><![endif]-->
+</head>
+	<body>
+		<table>
+			<tr>
+				<td>
+					<h1>Business in Practice - KPI Rankings</h1>
+				</td>
+			</tr>
+			<tr>
+				<td> <!-- menu -->
+                    <select id="date" onchange="update()">
+                        <option value="2023-06-19">Day 1</option>
+                        <option value="2023-06-20">Day 2</option>
+                        <option value="2023-06-21">Day 3</option>
+                        <option value="2023-06-23">Day 4</option>
+                        <option value="2023-06-24">Day 5</option>
+                        <option value="2023-06-25">Day 6</option>
+                    </select>
+                    <select id="kpi" onchange="update()">
+                        <option value="scores">Scores</option>
+                        <option value="wacc">WACC</option>
+                        <option value="factory_utilization">Factory Utilisation</option>
+                        <option value="employee_engagement">Employee Engagement</option>
+                        <option value="interest_coverage">Interest Coverage</option>
+                        <option value="marketing_spend_rev">Cumulative Marketing Spend/Rev</option>
+                        <option value="e_cars_sales">eCar Sales</option>
+                        <option value="co2_penalty">CO2 Penalty</option>
+                    </select>
+				</td>
+            </tr>
+            <tr>
+				<td> <!-- data -->
+					<table id="datatable" border="1px">
+                        <thead>
+						    <tr><th>Rank</th><th>Team</th><th>Value</th></tr>
+                        </thead>
+                        <tbody></tbody>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
