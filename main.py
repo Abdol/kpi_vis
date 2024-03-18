@@ -1,8 +1,10 @@
 # IMPORTS
-from bokeh.layouts import row, layout
+from bokeh.layouts import row, layout, column
 from bokeh.plotting import figure, curdoc
-from bokeh.models import ColumnDataSource, DateSlider, MultiChoice, Legend
+from bokeh.models import ColumnDataSource, DateSlider, MultiChoice, Legend, Dropdown
 from bokeh.models.widgets import Div
+from bokeh.palettes import Turbo256
+from bokeh.transform import linear_cmap
 from config import (
     APP_TITLE,
     DATA_DIR,
@@ -15,13 +17,13 @@ from config import (
     LEGEND_TITLE,
     SIDE_PLOT_WIDTH,
     SIDE_PLOT_HEIGHT,
-    SIDE_PLOT_TITLE,
+    MAIN_PLOT2_TITLE,
+    LEADERBOARD_PLOT_TITLE,
 )
 import json
 import os
 import pandas as pd
 import numpy as np
-
 
 # JSON DATA IMPORT
 data = {}
@@ -54,7 +56,7 @@ description = Div(text=APP_TITLE)
 
 
 ## FUNCTIONS
-def update_source(date, exclude_kpis=[]):
+def update_source(date, kpi="scores", exclude_kpis=[]):
     source_dict = dict(
         date=dates,
         team_id=dfs[date].index,
@@ -66,9 +68,11 @@ def update_source(date, exclude_kpis=[]):
         marketing_spend_rev=dfs[date]["marketing_spend_rev"],
         e_cars_sales=dfs[date]["e_cars_sales"],
         co2_penalty=dfs[date]["co2_penalty"],
+        kpi=dfs[date][kpi],
     )
-    for kpi in exclude_kpis:
-        source_dict[kpi] = np.zeros(len(TEAM_NAMES))
+    source_dict["kpi"] = source_dict[kpi].sort_values(ascending=False)
+    for _kpi in exclude_kpis:
+        source_dict[_kpi] = np.zeros(len(TEAM_NAMES))
     return source_dict
 
 
@@ -79,12 +83,34 @@ def update_plot(attr, old, new):
     print("Slider value: ", date_value, "- selected KPIs: ", kpi_values)
     if date_value in dfs:
         exclude_kpis = [kpi for kpi in KPIS if kpi not in kpi_values]
-        source_dict = update_source(date_value, exclude_kpis)
+        source_dict = update_source(date_value, exclude_kpis=exclude_kpis)
         source.data = source_dict
     else:
         print("No data for date: ", date_value)
         zeros = np.zeros(len(TEAM_NAMES))
-        source.data = dict(date=dates, team_id=TEAM_NAMES, scores=zeros)
+        source.data = dict(
+            date=dates,
+            team_id=TEAM_NAMES,
+            scores=zeros,
+            wacc=zeros,
+            factory_utilization=zeros,
+            employee_engagement=zeros,
+            interest_coverage=zeros,
+            marketing_spend_rev=zeros,
+            e_cars_sales=zeros,
+            co2_penalty=zeros,
+            kpi=zeros,
+        )
+
+
+def update_leaderboard_plot(event):
+    print("Leaderboard KPI: ", event.item)
+    kpi = event.item
+    date_value = pd.to_datetime(slider.value_as_date).strftime("%Y-%m-%d")
+    exclude_kpis = [kpi for kpi in KPIS if kpi not in kpi_selector.value]
+    sorted_source = update_source(date_value, kpi, exclude_kpis)
+    source.data = sorted_source
+    leaderboard_plot.title.text = f"Leaderboard for {KPIS[kpi][0]}"
 
 
 ## PLOT SETUP
@@ -99,22 +125,37 @@ kpi_selector = MultiChoice(
     title="KPIs", value=list(KPIS.keys()), options=list(KPIS.keys()), solid=False
 )
 kpi_selector.on_change("value", update_plot)
+leaderboard_kpi_selector = Dropdown(
+    label="Leaderboard KPI",
+    button_type="warning",
+    menu=list(KPIS.keys()),
+)
+leaderboard_kpi_selector.on_click(update_leaderboard_plot)
 
 ## PLOTS
+### MAIN PLOT
 main_legend = []
-side_legend = []
 kpi_plot = figure(
     width=MAIN_PLOT_WIDTH,
     height=MAIN_PLOT_HEIGHT,
     x_range=TEAM_NAMES,
     title=MAIN_PLOT_TITLE,
+    tooltips="@$name",
 )
 for kpi in KPIS:
     color = KPIS[kpi][1]
     c1 = kpi_plot.line(
-        x="team_id", y=kpi, source=source, color=color, alpha=0.8, line_width=4
+        x="team_id",
+        y=kpi,
+        name=kpi,
+        source=source,
+        color=color,
+        alpha=0.8,
+        line_width=4,
     )
-    c2 = kpi_plot.scatter(x="team_id", y=kpi, source=source, color=color, size=8)
+    c2 = kpi_plot.scatter(
+        x="team_id", y=kpi, name=kpi, source=source, color=color, size=8
+    )
     main_legend.append((KPIS[kpi][0], [c1, c2]))
 
 kpi_plot.background_fill_color = PLOT_BACKGROUND_COLOR
@@ -125,6 +166,8 @@ kpi_plot.add_layout(kpi_legend, "right")
 kpi_legend.title = LEGEND_TITLE
 kpi_legend.click_policy = "mute"
 
+### SIDE PLOT
+side_legend = []
 percentage_kpis = [
     "wacc",
     "factory_utilization",
@@ -132,16 +175,18 @@ percentage_kpis = [
     "interest_coverage",
 ]
 percentage_kpi_plot = figure(
-    width=SIDE_PLOT_WIDTH,
-    height=SIDE_PLOT_HEIGHT,
+    width=MAIN_PLOT_WIDTH,
+    height=MAIN_PLOT_HEIGHT,
     x_range=TEAM_NAMES,
-    title=SIDE_PLOT_TITLE,
+    title=MAIN_PLOT2_TITLE,
+    tooltips="@$name",
 )
 for kpi in percentage_kpis:
     color = KPIS[kpi][1]
     c1 = percentage_kpi_plot.line(
         x="team_id",
         y=kpi,
+        name=kpi,
         source=source,
         color=color,
         alpha=0.8,
@@ -149,7 +194,7 @@ for kpi in percentage_kpis:
         line_width=4,
     )
     c2 = percentage_kpi_plot.scatter(
-        x="team_id", y=kpi, source=source, color=color, size=8
+        x="team_id", y=kpi, name=kpi, source=source, color=color, size=8
     )
     side_legend.append((KPIS[kpi][0], [c1, c2]))
 
@@ -161,13 +206,45 @@ percentage_kpi_plot.add_layout(percentage_kpi_legend, "right")
 percentage_kpi_legend.title = LEGEND_TITLE
 percentage_kpi_legend.click_policy = "mute"
 
+### LEADERBOARD PLOT
+leaderboard_plot = figure(
+    width=SIDE_PLOT_WIDTH,
+    height=SIDE_PLOT_HEIGHT,
+    x_range=TEAM_NAMES,
+    title=LEADERBOARD_PLOT_TITLE,
+    tooltips="@$name",
+)
+cmap = linear_cmap(
+    field_name="team_id",
+    palette=Turbo256,
+    low=min(source.data["team_id"]),
+    high=max(source.data["team_id"]),
+)
+leaderboard_plot.vbar(
+    x="team_id",
+    top="kpi",
+    name="kpi",
+    width=0.8,
+    source=source,
+    fill_color=cmap,
+    line_color="black",
+)
+leaderboard_plot.background_fill_color = PLOT_BACKGROUND_COLOR
+leaderboard_plot.y_range.start = 0
+leaderboard_plot.xaxis.major_label_orientation = 1
+
 
 # LAYOUT
 layout = layout(
     [
         row([description], sizing_mode="fixed"),
         row([slider, kpi_selector], sizing_mode="fixed"),
-        [kpi_plot],
+        [
+            kpi_plot,
+            column(
+                [leaderboard_kpi_selector, leaderboard_plot], sizing_mode="stretch_both"
+            ),
+        ],
         [percentage_kpi_plot],
     ],
     sizing_mode="stretch_both",
