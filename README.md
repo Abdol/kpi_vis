@@ -1,4 +1,4 @@
-# README
+# KPI Data Visualiser Demo
 
 ## Installation
 
