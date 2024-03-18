@@ -14,7 +14,7 @@ You can install prerequisite packages using pip:
 
 `pip install -r requirements.txt`
 
-Make sure put the data in place before running the code (i.e., in `../wbs_data`)
+Make sure to put the data in place before running the code (i.e., in `../wbs_data`)
 
 Then run the project using:
 
