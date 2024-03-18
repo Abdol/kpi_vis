@@ -81,11 +81,9 @@ TEAMS = {}
 for i in range(len(TEAM_NAMES)):
     TEAMS[i + 1] = TEAM_NAMES[i]
 
-MAIN_PLOT_WIDTH = 1000
-MAIN_PLOT_HEIGHT = 700
+MAIN_PLOT_WIDTH = 1200
+MAIN_PLOT_HEIGHT = 800
 MAIN_PLOT_TITLE = "KPIs by Team"
-SIDE_PLOT_WIDTH = 900
-SIDE_PLOT_HEIGHT = 700
 MAIN_PLOT2_TITLE = "Percentage KPIs"
 LEADERBOARD_PLOT_TITLE = "Leaderboard by Scores"
 APP_TITLE = "<h1>Business in Practice | KPI Data Visualiser</h1>"

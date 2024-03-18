@@ -1,5 +1,5 @@
 # IMPORTS
-from bokeh.layouts import row, layout, column
+from bokeh.layouts import row, layout
 from bokeh.plotting import figure, curdoc
 from bokeh.models import ColumnDataSource, DateSlider, MultiChoice, Legend, Dropdown
 from bokeh.models.widgets import Div
@@ -15,10 +15,9 @@ from config import (
     MAIN_PLOT_TITLE,
     PLOT_BACKGROUND_COLOR,
     LEGEND_TITLE,
-    SIDE_PLOT_WIDTH,
-    SIDE_PLOT_HEIGHT,
     MAIN_PLOT2_TITLE,
     LEADERBOARD_PLOT_TITLE,
+    UNITS,
 )
 import json
 import os
@@ -110,7 +109,7 @@ def update_leaderboard_plot(event):
     exclude_kpis = [kpi for kpi in KPIS if kpi not in kpi_selector.value]
     sorted_source = update_source(date_value, kpi, exclude_kpis)
     source.data = sorted_source
-    leaderboard_plot.title.text = f"Leaderboard for {KPIS[kpi][0]}"
+    leaderboard_plot.title.text = f"Leaderboard for {KPIS[kpi][0]} {UNITS[kpi]}"
 
 
 ## PLOT SETUP
@@ -208,8 +207,8 @@ percentage_kpi_legend.click_policy = "mute"
 
 ### LEADERBOARD PLOT
 leaderboard_plot = figure(
-    width=SIDE_PLOT_WIDTH,
-    height=SIDE_PLOT_HEIGHT,
+    width=MAIN_PLOT_WIDTH,
+    height=MAIN_PLOT_HEIGHT,
     x_range=TEAM_NAMES,
     title=LEADERBOARD_PLOT_TITLE,
     tooltips="@$name",
@@ -239,11 +238,9 @@ layout = layout(
     [
         row([description], sizing_mode="fixed"),
         row([slider, kpi_selector], sizing_mode="fixed"),
+        row([leaderboard_plot, leaderboard_kpi_selector], sizing_mode="scale_height"),
         [
             kpi_plot,
-            column(
-                [leaderboard_kpi_selector, leaderboard_plot], sizing_mode="stretch_both"
-            ),
         ],
         [percentage_kpi_plot],
     ],
