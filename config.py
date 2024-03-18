@@ -79,8 +79,8 @@ TEAM_NAMES = [
 ]
 TEAMS = {}
 for i in range(len(TEAM_NAMES)):
-    TEAMS[i + 1] = TEAM_NAMES[i]
-
+    TEAMS[i] = TEAM_NAMES[i]
+TEAMS_SORTED = TEAMS
 MAIN_PLOT_WIDTH = 1200
 MAIN_PLOT_HEIGHT = 800
 MAIN_PLOT_TITLE = "KPIs by Team"

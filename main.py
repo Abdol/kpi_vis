@@ -1,10 +1,18 @@
 # IMPORTS
 from bokeh.layouts import row, layout
 from bokeh.plotting import figure, curdoc
-from bokeh.models import ColumnDataSource, DateSlider, MultiChoice, Legend, Dropdown
+from bokeh.models import (
+    ColumnDataSource,
+    DateSlider,
+    MultiChoice,
+    Legend,
+    Dropdown,
+    FactorRange,
+)
 from bokeh.models.widgets import Div
 from bokeh.palettes import Turbo256
 from bokeh.transform import linear_cmap
+import ptvsd
 from config import (
     APP_TITLE,
     DATA_DIR,
@@ -17,6 +25,8 @@ from config import (
     LEGEND_TITLE,
     MAIN_PLOT2_TITLE,
     LEADERBOARD_PLOT_TITLE,
+    TEAMS,
+    TEAMS_SORTED,
     UNITS,
 )
 import json
@@ -24,41 +34,42 @@ import os
 import pandas as pd
 import numpy as np
 
-# JSON DATA IMPORT
-data = {}
-for file in sorted(os.listdir(DATA_DIR)):
-    if file.endswith(".json"):
-        with open(os.path.join(DATA_DIR, file), "r") as f:
-            data[os.path.splitext(file)[0]] = json.load(f)
-            print("Loaded JSON file: ", file)
+## FUNCTIONS
+def load_json_files(dir):
+    data = {}
+    for file in sorted(os.listdir(dir)):
+        if file.endswith(".json"):
+            with open(os.path.join(DATA_DIR, file), "r") as f:
+                data[os.path.splitext(file)[0]] = json.load(f)
+                print("Loaded JSON file: ", file)
+    return data
 
-
-# DATA PRE-PROCESSING
-dfs = {}
-for _date, json_data in data.items():
-    df = pd.DataFrame(json_data)
-    for col in df.columns:
-        df[col] = df[col].sort_values(
+def make_dataframes(data):
+    dfs = {}
+    for _date, json_data in data.items():
+        df = pd.DataFrame(json_data)
+        for col in df.columns:
+            df[col] = df[col].sort_values(
             key=lambda x: x.apply(lambda x: x["team"]), ignore_index=True
         )
-        df["team_id"] = df[col].apply(lambda x: x["team"])
-        df[col] = df[col].apply(lambda x: x["value"])
-    df.set_index("team_id", inplace=True)
-    df = df.apply(pd.to_numeric)
-    dfs[_date] = df
-    print("Pre-processed JSON data for date: ", _date)
+            df["team_id"] = df[col].apply(lambda x: x["team"])
+            df[col] = df[col].apply(lambda x: x["value"])
+        df.set_index("team_id", inplace=True)
+        df = df.apply(pd.to_numeric)
+        dfs[_date] = df
+        print("Pre-processed JSON data for date: ", _date)
+    return dfs
 
-
-# DATA VISUALIZATION
-## DESCRIPTION
-description = Div(text=APP_TITLE)
-
-
-## FUNCTIONS
 def update_source(date, kpi="scores", exclude_kpis=[]):
+    df = dfs[date]
+    df = df.sort_values(by=kpi, ascending=False)
+    global TEAMS, TEAMS_SORTED
+    TEAMS_SORTED = [TEAMS[i - 1] for i in df.index]
+    df = df.reset_index(names="team_id", drop=True)
     source_dict = dict(
         date=dates,
         team_id=dfs[date].index,
+        team_id_sorted=df.index,
         scores=dfs[date]["scores"],
         wacc=dfs[date]["wacc"],
         factory_utilization=dfs[date]["factory_utilization"],
@@ -67,9 +78,8 @@ def update_source(date, kpi="scores", exclude_kpis=[]):
         marketing_spend_rev=dfs[date]["marketing_spend_rev"],
         e_cars_sales=dfs[date]["e_cars_sales"],
         co2_penalty=dfs[date]["co2_penalty"],
-        kpi=dfs[date][kpi],
+        kpi=df[kpi],
     )
-    source_dict["kpi"] = source_dict[kpi].sort_values(ascending=False)
     for _kpi in exclude_kpis:
         source_dict[_kpi] = np.zeros(len(TEAM_NAMES))
     return source_dict
@@ -84,6 +94,9 @@ def update_plot(attr, old, new):
         exclude_kpis = [kpi for kpi in KPIS if kpi not in kpi_values]
         source_dict = update_source(date_value, exclude_kpis=exclude_kpis)
         source.data = source_dict
+        leaderboard_plot.x_range.factors = [
+            TEAMS_SORTED[int(team_id)] for team_id in source.data["team_id_sorted"]
+        ]
     else:
         print("No data for date: ", date_value)
         zeros = np.zeros(len(TEAM_NAMES))
@@ -109,7 +122,19 @@ def update_leaderboard_plot(event):
     exclude_kpis = [kpi for kpi in KPIS if kpi not in kpi_selector.value]
     sorted_source = update_source(date_value, kpi, exclude_kpis)
     source.data = sorted_source
+    leaderboard_plot.x_range.factors = [
+        TEAMS_SORTED[int(team_id)] for team_id in source.data["team_id_sorted"]
+    ]
     leaderboard_plot.title.text = f"Leaderboard for {KPIS[kpi][0]} {UNITS[kpi]}"
+
+# JSON DATA IMPORT AND PRE-PROCESSING
+data = load_json_files(DATA_DIR)
+dfs = make_dataframes(data)
+
+
+# DATA VISUALIZATION
+## DESCRIPTION
+description = Div(text=APP_TITLE)
 
 
 ## PLOT SETUP
@@ -132,7 +157,36 @@ leaderboard_kpi_selector = Dropdown(
 leaderboard_kpi_selector.on_click(update_leaderboard_plot)
 
 ## PLOTS
-### MAIN PLOT
+### LEADERBOARD PLOT
+x_range = [TEAMS_SORTED[int(team_id)] for team_id in source.data["team_id_sorted"]]
+x_range = FactorRange(factors=x_range)
+leaderboard_plot = figure(
+    width=MAIN_PLOT_WIDTH,
+    height=MAIN_PLOT_HEIGHT,
+    x_range=x_range,
+    title=LEADERBOARD_PLOT_TITLE,
+    tooltips="@$name",
+)
+cmap = linear_cmap(
+    field_name="team_id_sorted",
+    palette=Turbo256,
+    low=min(source.data["team_id_sorted"]),
+    high=max(source.data["team_id_sorted"]),
+)
+leaderboard_plot.vbar(
+    x="team_id_sorted",
+    top="kpi",
+    name="kpi",
+    width=0.8,
+    source=source,
+    fill_color=cmap,
+    line_color="black",
+)
+leaderboard_plot.background_fill_color = PLOT_BACKGROUND_COLOR
+leaderboard_plot.y_range.start = 0
+leaderboard_plot.xaxis.major_label_orientation = 1
+
+### MAIN KPI PLOT
 main_legend = []
 kpi_plot = figure(
     width=MAIN_PLOT_WIDTH,
@@ -165,7 +219,7 @@ kpi_plot.add_layout(kpi_legend, "right")
 kpi_legend.title = LEGEND_TITLE
 kpi_legend.click_policy = "mute"
 
-### SIDE PLOT
+### SECONDARY KPI PLOT
 side_legend = []
 percentage_kpis = [
     "wacc",
@@ -205,34 +259,6 @@ percentage_kpi_plot.add_layout(percentage_kpi_legend, "right")
 percentage_kpi_legend.title = LEGEND_TITLE
 percentage_kpi_legend.click_policy = "mute"
 
-### LEADERBOARD PLOT
-leaderboard_plot = figure(
-    width=MAIN_PLOT_WIDTH,
-    height=MAIN_PLOT_HEIGHT,
-    x_range=TEAM_NAMES,
-    title=LEADERBOARD_PLOT_TITLE,
-    tooltips="@$name",
-)
-cmap = linear_cmap(
-    field_name="team_id",
-    palette=Turbo256,
-    low=min(source.data["team_id"]),
-    high=max(source.data["team_id"]),
-)
-leaderboard_plot.vbar(
-    x="team_id",
-    top="kpi",
-    name="kpi",
-    width=0.8,
-    source=source,
-    fill_color=cmap,
-    line_color="black",
-)
-leaderboard_plot.background_fill_color = PLOT_BACKGROUND_COLOR
-leaderboard_plot.y_range.start = 0
-leaderboard_plot.xaxis.major_label_orientation = 1
-
-
 # LAYOUT
 layout = layout(
     [
@@ -249,3 +275,10 @@ layout = layout(
 
 # ADD TO DOCUMENT
 curdoc().add_root(layout)
+
+## DEBUGGING
+if os.environ['BOKEH_VS_DEBUG'] == 'true':
+    # 5678 is the default attach port in the VS Code debug configurations
+    print('Waiting for debugger attach')
+    ptvsd.enable_attach(address=('localhost', 5678), redirect_output=True)
+    ptvsd.wait_for_attach()
