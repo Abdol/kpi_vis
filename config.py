@@ -1,4 +1,4 @@
-DATA_DIR = "data"
+DATA_DIR = "../wbs_data"
 UNITS = {
     "wacc": "%",
     "scores": "",
